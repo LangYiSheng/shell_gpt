@@ -8,6 +8,7 @@ import typer
 from click import BadArgumentUsage
 from click.types import Choice
 from prompt_toolkit import PromptSession
+from typing import Optional
 
 from sgpt.config import cfg
 from sgpt.function import get_openai_schemas
@@ -80,6 +81,18 @@ def main(
         cfg.get("OPENAI_USE_FUNCTIONS") == "true",
         help="Allow function calls.",
         rich_help_panel="Assistance Options",
+    ),
+    mcp: bool = typer.Option(
+        False,
+        "--mcp",
+        help="Route the request through a configured MCP server.",
+        rich_help_panel="MCP Options",
+    ),
+    mcp_server: Optional[str] = typer.Option(
+        None,
+        "--mcp-server",
+        help="Name of the MCP server defined in the configuration file.",
+        rich_help_panel="MCP Options",
     ),
     editor: bool = typer.Option(
         False,
@@ -186,16 +199,21 @@ def main(
     if show_chat:
         ChatHandler.show_messages(show_chat, md)
 
-    if sum((shell, describe_shell, code)) > 1:
-        raise BadArgumentUsage(
-            "Only one of --shell, --describe-shell, and --code options can be used at a time."
-        )
+    if sum((shell, describe_shell, code, mcp)) > 1:
+        typer.echo("Only one of --shell, --describe-shell, --code, and --mcp options can be used at a time.", err=True)
+        raise typer.Exit(code=2)
+
+    if mcp and any((chat, repl)):
+        typer.echo("--mcp option cannot be combined with --chat or --repl.", err=True)
+        raise typer.Exit(code=2)
 
     if chat and repl:
-        raise BadArgumentUsage("--chat and --repl options cannot be used together.")
+        typer.echo("--chat and --repl options cannot be used together.", err=True)
+        raise typer.Exit(code=2)
 
     if editor and stdin_passed:
-        raise BadArgumentUsage("--editor option cannot be used with stdin input.")
+        typer.echo("--editor option cannot be used with stdin input.", err=True)
+        raise typer.Exit(code=2)
 
     if editor:
         prompt = get_edited_prompt()
@@ -207,6 +225,17 @@ def main(
     )
 
     function_schemas = (get_openai_schemas() or None) if functions else None
+
+    if mcp:
+        from sgpt.handlers.mcp_handler import MCPHandler
+
+        MCPHandler(md, mcp_server).handle(
+            prompt=prompt,
+            model=model,
+            temperature=temperature,
+            top_p=top_p,
+        )
+        return
 
     if repl:
         # Will be in infinite loop here until user exits with Ctrl+C.

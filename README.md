@@ -416,6 +416,36 @@ USE_LITELLM=false
 Possible options for `DEFAULT_COLOR`: black, red, green, yellow, blue, magenta, cyan, white, bright_black, bright_red, bright_green, bright_yellow, bright_blue, bright_magenta, bright_cyan, bright_white.
 Possible options for `CODE_THEME`: https://pygments.org/styles/
 
+### Model Context Protocol
+ShellGPT can delegate tasks to Model Context Protocol (MCP) servers when the [`fastmcp`](https://pypi.org/project/fastmcp/) package is installed.
+
+1. Create an MCP server manifest at `~/.config/shell_gpt/mcp_servers.json`:
+   ```json
+   {
+     "mcpServers": {
+       "default": {
+         "type": "sse",
+         "url": "http://127.0.0.1:5000"
+       }
+     }
+   }
+   ```
+   The structure matches the `fastmcp` client configuration; stdio-based servers can use `"command"`/`"args"` instead of `"url"`.
+
+2. Run ShellGPT with the `--mcp` switch:
+   ```shell
+   sgpt --mcp "解释一下什么是神经网络..."
+   ```
+
+3. Optionally choose a non-default server:
+   ```shell
+   sgpt --mcp --mcp-server linux "帮我创建一个文件"
+   ```
+
+ShellGPT prints the server it selected, forwards the prompt through `fastmcp`, and then renders the language model response. The regular OpenAI credentials and API base URL from `.sgptrc` are reused for MCP requests.
+
+The MCP agent may plan several tool invocations in a single run: it inspects prior tool outputs, decides whether additional steps are needed, and only summarises when it marks the work as complete.
+
 ### Full list of arguments
 ```text
 ╭─ Arguments ──────────────────────────────────────────────────────────────────────────────────────────────╮
